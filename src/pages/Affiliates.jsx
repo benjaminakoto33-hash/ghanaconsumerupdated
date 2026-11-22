@@ -1,448 +1,1035 @@
-import React, { useState, useEffect } from "react";
+
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  FiArrowRight, FiUsers, FiDollarSign, FiTrendingUp, 
-  FiPieChart, FiGlobe, FiShield, FiClock, FiAward,
-  FiCheckCircle, FiStar, FiBarChart2, FiLink
+import { supabase } from "../lib/supabaseClient";
+
+import {
+  FiArrowRight,
+  FiUsers,
+  FiDollarSign,
+  FiTrendingUp,
+  FiPieChart,
+  FiGlobe,
+  FiShield,
+  FiClock,
+  FiAward,
+  FiCheckCircle,
+  FiStar,
+  FiBarChart2,
+  FiLink,
+  FiX,
+  FiSend,
+  FiLoader,
+  FiAlertCircle,
+  FiCheck,
 } from "react-icons/fi";
 
 const Affiliates = () => {
+  // Modal and form states
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [stats, setStats] = useState([
-    { value: 2500, label: "Active Affiliates", icon: <FiUsers /> },
-    { value: "₵1.2M", label: "Total Paid", icon: <FiDollarSign /> },
-    { value: "15%", label: "Avg. Commission", icon: <FiTrendingUp /> },
-    { value: "98%", label: "Satisfaction Rate", icon: <FiStar /> }
-  ]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState("idle");
+  const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    // Animation for counter stats
-    const interval = setInterval(() => {
-      setStats(prev => prev.map(stat => ({
-        ...stat,
-        value: typeof stat.value === 'number' 
-          ? stat.value + Math.floor(Math.random() * 10) 
-          : stat.value
-      })));
-    }, 3000);
+  // Affiliate application form
+  const initialFormData = {
+    full_name: "",
+    email: "",
+    website_or_social: "",
+    promotion_method: "",
+    audience_size: "",
+    message: "",
+    agreed_to_terms: false,
+  };
 
-    return () => clearInterval(interval);
-  }, []);
+  const [formData, setFormData] = useState(initialFormData);
 
-  const testimonials = [
-    {
-      name: "Kofi Mensah",
-      role: "Lifestyle Blogger",
-      content: "GhanaConsumer's affiliate program has transformed my blog into a revenue-generating platform. The commissions are generous and the support team is always helpful.",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-    },
-    {
-      name: "Ama Serwaa",
-      role: "Instagram Influencer",
-      content: "As a micro-influencer focusing on Ghanaian products, I've found GhanaConsumer to be the most reliable affiliate program. Timely payments and great conversion rates!",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
-    },
-    {
-      name: "Kwame Adjei",
-      role: "YouTuber",
-      content: "My tech review channel has benefited immensely from the GhanaConsumer affiliate program. The product variety and competitive commissions make it my top choice.",
-      avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=100&q=80"
+  // Open application modal
+  const openModal = () => {
+    setIsModalOpen(true);
+    setSubmissionStatus("idle");
+    setMessage("");
+  };
+
+  // Close application modal
+  const closeModal = () => {
+    if (isSubmitting) return;
+
+    setIsModalOpen(false);
+    setSubmissionStatus("idle");
+    setMessage("");
+  };
+
+  // Handle form input changes
+  const handleChange = (e) => {
+    const { name, value, checked, type } = e.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  // Submit affiliate application to Supabase
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (isSubmitting) return;
+
+    setSubmissionStatus("idle");
+    setMessage("");
+
+    const fullName = formData.full_name.trim();
+    const email = formData.email.trim().toLowerCase();
+    const platform = formData.website_or_social.trim();
+
+    // Validate required fields
+    if (!fullName || !email || !platform) {
+      setSubmissionStatus("error");
+      setMessage("Please complete all required fields.");
+      return;
     }
+
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) {
+      setSubmissionStatus("error");
+      setMessage("Please enter a valid email address.");
+      return;
+    }
+
+    // Validate agreement
+    if (!formData.agreed_to_terms) {
+      setSubmissionStatus("error");
+      setMessage("Please agree to the affiliate application terms.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmissionStatus("loading");
+    setMessage("Submitting your application. Please wait...");
+
+    try {
+      // Prepare application data
+      const application = {
+        full_name: fullName,
+        email: email,
+        website_or_social: platform,
+        promotion_method: formData.promotion_method || null,
+        audience_size: formData.audience_size || null,
+        message: formData.message.trim() || null,
+        agreed_to_terms: true,
+      };
+
+      console.log("Submitting affiliate application...");
+
+      // Save application to Supabase
+      // Do not use .select() here because public visitors
+      // are not permitted to read application records.
+      const { error } = await supabase
+        .from("affiliate_applications")
+        .insert([application]);
+
+      if (error) {
+        console.error("Supabase application error:", error);
+        throw error;
+      }
+
+      console.log("Affiliate application successfully submitted.");
+
+      // Reset form after successful submission
+      setFormData(initialFormData);
+
+      setSubmissionStatus("success");
+      setMessage(
+        "Thank you for applying to join GhanaConsumer! Your application has been received and is awaiting review. Our team will contact you using the email address you provided."
+      );
+
+    } catch (error) {
+      console.error("Affiliate application submission failed:", error);
+
+      let errorMessage =
+        "We couldn't submit your application. Please try again.";
+
+      if (error?.code === "42P01") {
+        errorMessage =
+          "The affiliate applications table was not found. Please check your Supabase database setup.";
+      } else if (error?.code === "42501") {
+        errorMessage =
+          "Permission denied. Please check the Supabase Row Level Security policies.";
+      } else if (
+        error?.message?.toLowerCase().includes("fetch")
+      ) {
+        errorMessage =
+          "Unable to connect to Supabase. Please check your internet connection and Supabase configuration.";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      setSubmissionStatus("error");
+      setMessage(errorMessage);
+
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Program benefits
+  const benefits = [
+    {
+      icon: <FiDollarSign />,
+      title: "Commission Opportunities",
+      description:
+        "Explore earning opportunities through approved referrals and promotional activities.",
+    },
+    {
+      icon: <FiBarChart2 />,
+      title: "Performance Tracking",
+      description:
+        "Build your affiliate journey with tools and resources for monitoring your performance.",
+    },
+    {
+      icon: <FiClock />,
+      title: "Flexible Promotion",
+      description:
+        "Promote through your website, blog, social media accounts or other approved channels.",
+    },
+    {
+      icon: <FiShield />,
+      title: "Dedicated Support",
+      description:
+        "Get guidance and assistance from the GhanaConsumer team.",
+    },
+    {
+      icon: <FiPieChart />,
+      title: "Marketing Resources",
+      description:
+        "Access approved promotional materials and campaign information.",
+    },
+    {
+      icon: <FiAward />,
+      title: "Growth Opportunities",
+      description:
+        "Develop your platform and build a meaningful partnership with GhanaConsumer.",
+    },
   ];
 
+  // How the program works
+  const steps = [
+    {
+      icon: <FiUsers />,
+      title: "Apply to Join",
+      description:
+        "Complete the application form with your contact details and promotional platform.",
+    },
+    {
+      icon: <FiCheckCircle />,
+      title: "Application Review",
+      description:
+        "Our team reviews your application and contacts you about the next steps.",
+    },
+    {
+      icon: <FiLink />,
+      title: "Start Promoting",
+      description:
+        "Once approved, receive information about your affiliate arrangements and promotional resources.",
+    },
+  ];
+
+  // Frequently asked questions
   const faqs = [
     {
-      question: "How often are commissions paid out?",
-      answer: "Commissions are paid monthly on the 15th of each month for all sales that occurred in the previous month."
+      question: "Is it free to apply?",
+      answer:
+        "Yes. Submitting an application to join the GhanaConsumer affiliate program is free.",
     },
     {
-      question: "Is there a cost to join the affiliate program?",
-      answer: "No, joining our affiliate program is completely free. We believe in creating mutual growth opportunities."
+      question: "Who can apply?",
+      answer:
+        "Bloggers, content creators, social media influencers, website owners, businesses and other interested individuals can apply.",
     },
     {
-      question: "What is the cookie duration for tracking?",
-      answer: "We offer a 45-day cookie window, meaning you'll earn commission on any sale made within 45 days of a customer clicking your referral link."
+      question: "How long does application review take?",
+      answer:
+        "Applications are reviewed by our team. We will contact you using the email address provided in your application.",
     },
     {
-      question: "Are there any minimum payout thresholds?",
-      answer: "Yes, the minimum payout threshold is ₵200. Once you reach this amount, you'll receive your earnings via your preferred payment method."
-    }
+      question: "When do I start earning commissions?",
+      answer:
+        "Commission arrangements, eligibility requirements, tracking and payment terms will be communicated after your application is approved.",
+    },
+    {
+      question: "Can I apply without a website?",
+      answer:
+        "Yes. You can provide your social media profile or another platform where you intend to promote GhanaConsumer.",
+    },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white text-gray-800">
-      {/* Hero Section */}
-      <section className="relative py-20 bg-gradient-to-r from-green-600 via-green-700 to-green-800 text-white overflow-hidden">
-        <div className="absolute inset-0 bg-black opacity-10"></div>
-        <div className="absolute top-0 right-0 -mt-16 mr-16 opacity-20">
-          <svg width="400" height="400" viewBox="0 0 200 200">
-            <path fill="currentColor" d="M45.2,-58.3C63.4,-46.3,85.5,-40,95.1,-25.3C104.7,-10.7,101.8,12.3,91.7,30.3C81.6,48.3,64.4,61.3,45.7,69.8C27,78.3,6.7,82.3,-9.1,78.6C-24.9,74.9,-36.1,63.4,-49.3,50.3C-62.5,37.2,-77.7,22.5,-82.5,4.3C-87.3,-13.9,-81.7,-35.6,-69.1,-49.7C-56.5,-63.8,-36.9,-70.3,-17.3,-67.5C2.3,-64.7,4.6,-52.6,12.7,-42.2C20.8,-31.8,34.7,-23.1,45.2,-12.7C55.7,-2.4,62.8,9.6,67.2,23.2C71.6,36.8,73.4,52,66.7,62.2C60,72.4,44.9,77.6,29.9,79.9C14.9,82.3,0,81.8,-12.8,77.9C-25.6,74,-36.1,66.8,-47.4,58.1C-58.7,49.4,-70.7,39.2,-76.1,25.6C-81.5,12,-80.3,-5.1,-74.3,-19.2C-68.3,-33.4,-57.5,-44.7,-45.1,-57.2C-32.7,-69.7,-18.7,-83.5,-1.7,-81.1C15.3,-78.7,30.7,-60.2,45.2,-45.8Z" transform="translate(100 100)" />
-          </svg>
-        </div>
-        
-        <div className="container mx-auto px-4 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+    <div className="min-h-screen bg-gray-50 text-gray-800">
+
+      {/* ================= HERO SECTION ================= */}
+
+      <section className="relative overflow-hidden bg-gradient-to-br from-green-700 via-green-800 to-emerald-950 py-24 text-white">
+
+        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-white/10 blur-3xl" />
+
+        <div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-green-400/10 blur-3xl" />
+
+        <div className="relative z-10 mx-auto max-w-7xl px-5">
+
+          <motion.div
+            initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7 }}
-            className="text-center max-w-3xl mx-auto"
+            className="mx-auto max-w-3xl text-center"
           >
-            <h1 className="text-4xl md:text-5xl font-bold mb-6">GhanaConsumer Affiliate Program</h1>
-            <p className="text-xl mb-8 max-w-2xl mx-auto">
-              Partner with Ghana's leading consumer platform and earn competitive commissions while promoting products that empower Ghanaian consumers.
+
+            <span className="mb-6 inline-flex rounded-full border border-white/20 bg-white/10 px-5 py-2 text-sm font-semibold">
+              GHANACONSUMER PARTNER PROGRAM
+            </span>
+
+            <h1 className="mb-6 text-4xl font-extrabold leading-tight md:text-6xl">
+              Grow With Us.
+              <span className="block text-green-200">
+                Make an Impact.
+              </span>
+            </h1>
+
+            <p className="mx-auto mb-9 max-w-2xl text-lg leading-8 text-green-50">
+              Partner with GhanaConsumer to connect people with valuable
+              consumer information, products and opportunities while
+              building your own platform.
             </p>
+
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 bg-white text-green-700 rounded-full font-semibold text-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center mx-auto"
-              onClick={() => setIsModalOpen(true)}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={openModal}
+              className="inline-flex items-center rounded-full bg-white px-8 py-4 font-bold text-green-800 shadow-xl transition hover:bg-green-50"
             >
-              Join Our Affiliate Program <FiArrowRight className="ml-2" />
+              Become an Affiliate
+              <FiArrowRight className="ml-3" />
             </motion.button>
+
+            <p className="mt-5 text-sm text-green-100">
+              Free to apply. Applications are subject to review.
+            </p>
+
           </motion.div>
+
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-16">Why Brands Choose GhanaConsumer</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
+      {/* ================= INTRODUCTION ================= */}
+
+      <section className="bg-white py-16">
+
+        <div className="mx-auto max-w-6xl px-5 text-center">
+
+          <span className="font-bold uppercase tracking-widest text-green-700">
+            Why Partner With Us?
+          </span>
+
+          <h2 className="mt-3 text-3xl font-extrabold md:text-4xl">
+            An Opportunity to Grow Together
+          </h2>
+
+          <p className="mx-auto mt-5 max-w-3xl leading-8 text-gray-600">
+            We welcome individuals, content creators and businesses
+            who want to build meaningful partnerships with GhanaConsumer.
+            Bring your audience, creativity and ideas. Together, we can
+            create more value for consumers in Ghana.
+          </p>
+
+        </div>
+
+      </section>
+
+      {/* ================= BENEFITS ================= */}
+
+      <section className="bg-gray-50 py-20">
+
+        <div className="mx-auto max-w-7xl px-5">
+
+          <div className="mb-14 text-center">
+
+            <h2 className="text-3xl font-extrabold md:text-4xl">
+              Affiliate Program Benefits
+            </h2>
+
+            <p className="mx-auto mt-4 max-w-2xl text-gray-600">
+              Discover the opportunities available when you partner
+              with GhanaConsumer.
+            </p>
+
+          </div>
+
+          <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+
+            {benefits.map((benefit, index) => (
+
               <motion.div
-                key={index}
+                key={benefit.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                transition={{ delay: index * 0.08 }}
                 viewport={{ once: true }}
-                className="bg-gray-50 p-6 rounded-xl text-center shadow-sm hover:shadow-md transition-shadow"
+                className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
               >
-                <div className="text-green-600 text-3xl mb-4 flex justify-center">{stat.icon}</div>
-                <div className="text-3xl font-bold text-green-700 mb-2">{stat.value}</div>
-                <div className="text-gray-600">{stat.label}</div>
+
+                <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-xl bg-green-100 text-2xl text-green-700">
+                  {benefit.icon}
+                </div>
+
+                <h3 className="mb-3 text-xl font-bold">
+                  {benefit.title}
+                </h3>
+
+                <p className="leading-7 text-gray-600">
+                  {benefit.description}
+                </p>
+
               </motion.div>
+
             ))}
+
           </div>
+
         </div>
+
       </section>
 
-      {/* How It Works */}
-      <section className="py-16 bg-gray-50">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-4">How It Works</h2>
-          <p className="text-gray-600 text-center max-w-2xl mx-auto mb-16">
-            Our straightforward process makes it easy to start earning commissions with GhanaConsumer
-          </p>
-          
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              viewport={{ once: true }}
-              className="bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow text-center"
-            >
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-2xl mx-auto mb-6">
-                <FiLink />
-              </div>
-              <h3 className="font-semibold text-xl mb-4">1. Sign Up & Get Links</h3>
-              <p className="text-gray-600">Register for our affiliate program and get access to your personalized dashboard with unique tracking links.</p>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              viewport={{ once: true }}
-              className="bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow text-center"
-            >
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-2xl mx-auto mb-6">
-                <FiGlobe />
-              </div>
-              <h3 className="font-semibold text-xl mb-4">2. Promote Products</h3>
-              <p className="text-gray-600">Share GhanaConsumer products across your platforms - social media, blog, website, or YouTube channel.</p>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              viewport={{ once: true }}
-              className="bg-white p-8 rounded-xl shadow-sm hover:shadow-md transition-shadow text-center"
-            >
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-green-600 text-2xl mx-auto mb-6">
-                <FiDollarSign />
-              </div>
-              <h3 className="font-semibold text-xl mb-4">3. Earn Commissions</h3>
-              <p className="text-gray-600">Get paid for every sale made through your referral links. Track your earnings in real-time.</p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
+      {/* ================= HOW IT WORKS ================= */}
 
-      {/* Benefits Section */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-4">Program Benefits</h2>
-          <p className="text-gray-600 text-center max-w-2xl mx-auto mb-16">
-            We've designed our affiliate program to help you succeed and grow with us
-          </p>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              viewport={{ once: true }}
-              className="flex items-start"
-            >
-              <div className="bg-green-100 p-3 rounded-lg text-green-600 mr-4">
-                <FiDollarSign size={24} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Competitive Commissions</h3>
-                <p className="text-gray-600">Earn up to 20% commission on every sale with our tiered structure.</p>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              viewport={{ once: true }}
-              className="flex items-start"
-            >
-              <div className="bg-green-100 p-3 rounded-lg text-green-600 mr-4">
-                <FiBarChart2 size={24} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Real-time Analytics</h3>
-                <p className="text-gray-600">Track clicks, conversions, and earnings with our advanced dashboard.</p>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              viewport={{ once: true }}
-              className="flex items-start"
-            >
-              <div className="bg-green-100 p-3 rounded-lg text-green-600 mr-4">
-                <FiClock size={24} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Timely Payments</h3>
-                <p className="text-gray-600">Receive your earnings reliably every month through multiple payment options.</p>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              viewport={{ once: true }}
-              className="flex items-start"
-            >
-              <div className="bg-green-100 p-3 rounded-lg text-green-600 mr-4">
-                <FiShield size={24} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Dedicated Support</h3>
-                <p className="text-gray-600">Get assistance from our affiliate managers and marketing team.</p>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              viewport={{ once: true }}
-              className="flex items-start"
-            >
-              <div className="bg-green-100 p-3 rounded-lg text-green-600 mr-4">
-                <FiPieChart size={24} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Marketing Resources</h3>
-                <p className="text-gray-600">Access banners, product feeds, and content to help you promote.</p>
-              </div>
-            </motion.div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-              viewport={{ once: true }}
-              className="flex items-start"
-            >
-              <div className="bg-green-100 p-3 rounded-lg text-green-600 mr-4">
-                <FiAward size={24} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg mb-2">Performance Bonuses</h3>
-                <p className="text-gray-600">Earn additional bonuses for top performers each quarter.</p>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </section>
+      <section className="bg-white py-20">
 
-      {/* Testimonials */}
-      <section className="py-16 bg-gradient-to-r from-green-50 to-emerald-50">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-4">What Our Affiliates Say</h2>
-          <p className="text-gray-600 text-center max-w-2xl mx-auto mb-16">
-            Hear from successful affiliates who are growing with GhanaConsumer
-          </p>
-          
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {testimonials.map((testimonial, index) => (
+        <div className="mx-auto max-w-6xl px-5">
+
+          <div className="mb-14 text-center">
+
+            <h2 className="text-3xl font-extrabold md:text-4xl">
+              How It Works
+            </h2>
+
+            <p className="mt-4 text-gray-600">
+              Three steps to becoming a GhanaConsumer affiliate.
+            </p>
+
+          </div>
+
+          <div className="grid gap-10 md:grid-cols-3">
+
+            {steps.map((step, index) => (
+
               <motion.div
-                key={index}
+                key={step.title}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.2 }}
+                transition={{ delay: index * 0.15 }}
                 viewport={{ once: true }}
-                className="bg-white p-6 rounded-xl shadow-sm"
+                className="rounded-2xl bg-gray-50 p-8 text-center"
               >
-                <div className="flex items-center mb-4">
-                  <img src={testimonial.avatar} alt={testimonial.name} className="w-12 h-12 rounded-full object-cover mr-4" />
-                  <div>
-                    <h4 className="font-semibold">{testimonial.name}</h4>
-                    <p className="text-green-600 text-sm">{testimonial.role}</p>
-                  </div>
+
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-2xl text-green-700">
+                  {step.icon}
                 </div>
-                <p className="text-gray-600 italic">"{testimonial.content}"</p>
-                <div className="flex text-amber-400 mt-4">
-                  <FiStar className="fill-current" />
-                  <FiStar className="fill-current" />
-                  <FiStar className="fill-current" />
-                  <FiStar className="fill-current" />
-                  <FiStar className="fill-current" />
-                </div>
+
+                <span className="mb-3 block text-sm font-bold uppercase tracking-widest text-green-700">
+                  Step {index + 1}
+                </span>
+
+                <h3 className="mb-3 text-xl font-bold">
+                  {step.title}
+                </h3>
+
+                <p className="leading-7 text-gray-600">
+                  {step.description}
+                </p>
+
               </motion.div>
+
             ))}
+
           </div>
+
         </div>
+
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 bg-green-700 text-white">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-6">Ready to Start Earning?</h2>
-          <p className="text-green-100 max-w-2xl mx-auto mb-10">
-            Join hundreds of successful affiliates who are earning with GhanaConsumer. 
-            Whether you're a content creator, influencer, or website owner, our program offers great earning potential.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 bg-white text-green-700 rounded-full font-semibold shadow-lg hover:shadow-xl transition-all"
-              onClick={() => setIsModalOpen(true)}
+      {/* ================= WHO CAN APPLY ================= */}
+
+      <section className="bg-green-50 py-20">
+
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 md:grid-cols-2">
+
+          <div>
+
+            <span className="font-bold uppercase tracking-widest text-green-700">
+              Who Can Join?
+            </span>
+
+            <h2 className="mt-3 text-3xl font-extrabold md:text-4xl">
+              Your Platform. Your Audience. Our Partnership.
+            </h2>
+
+            <p className="mt-5 leading-8 text-gray-600">
+              Whether you have a growing social media community or
+              an established digital platform, we welcome applications
+              from people interested in working with us.
+            </p>
+
+            <ul className="mt-7 space-y-4">
+
+              {[
+                "Bloggers and website owners",
+                "Social media influencers",
+                "YouTubers and content creators",
+                "Digital marketing professionals",
+                "Businesses and online communities",
+              ].map((item) => (
+
+                <li key={item} className="flex items-center gap-3">
+
+                  <FiCheckCircle className="shrink-0 text-xl text-green-600" />
+
+                  <span className="font-medium text-gray-700">
+                    {item}
+                  </span>
+
+                </li>
+
+              ))}
+
+            </ul>
+
+            <button
+              onClick={openModal}
+              className="mt-9 inline-flex items-center rounded-lg bg-green-700 px-7 py-3 font-bold text-white transition hover:bg-green-800"
             >
-              Join Now - It's Free
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-8 py-4 border-2 border-white text-white rounded-full font-semibold hover:bg-white hover:text-green-700 transition-all"
-            >
-              Learn More
-            </motion.button>
+              Apply Today
+              <FiArrowRight className="ml-2" />
+            </button>
+
           </div>
+
+          <div className="rounded-3xl bg-gradient-to-br from-green-700 to-emerald-950 p-10 text-white shadow-xl">
+
+            <FiGlobe className="mb-7 text-5xl text-green-200" />
+
+            <h3 className="text-3xl font-extrabold">
+              Let's Build Something Meaningful.
+            </h3>
+
+            <p className="mt-5 leading-8 text-green-50">
+              Become part of a growing network of partners committed
+              to creating value and connecting with consumers across Ghana.
+            </p>
+
+            <div className="mt-8 border-t border-white/20 pt-6">
+
+              <p className="text-sm font-bold uppercase tracking-widest text-green-200">
+                GhanaConsumer
+              </p>
+
+              <p className="mt-2 text-xl font-bold">
+                Partnerships That Create Value.
+              </p>
+
+            </div>
+
+          </div>
+
         </div>
+
       </section>
 
-      {/* FAQ Section */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-4">Frequently Asked Questions</h2>
-          <p className="text-gray-600 text-center max-w-2xl mx-auto mb-16">
-            Find answers to common questions about our affiliate program
-          </p>
-          
-          <div className="max-w-3xl mx-auto">
-            {faqs.map((faq, index) => (
-              <motion.div 
-                key={index}
+      {/* ================= FAQ ================= */}
+
+      <section className="bg-white py-20">
+
+        <div className="mx-auto max-w-4xl px-5">
+
+          <div className="mb-12 text-center">
+
+            <h2 className="text-3xl font-extrabold md:text-4xl">
+              Frequently Asked Questions
+            </h2>
+
+            <p className="mt-4 text-gray-600">
+              Everything you need to know before applying.
+            </p>
+
+          </div>
+
+          <div className="space-y-5">
+
+            {faqs.map((faq) => (
+
+              <motion.div
+                key={faq.question}
                 initial={{ opacity: 0, y: 10 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="mb-6 border-b border-gray-200 pb-6"
+                className="rounded-xl border border-gray-200 p-6"
               >
-                <h3 className="font-semibold text-lg mb-2 flex items-center">
-                  <FiCheckCircle className="text-green-600 mr-2" /> {faq.question}
+
+                <h3 className="flex items-start gap-3 font-bold text-gray-900">
+
+                  <FiCheckCircle className="mt-1 shrink-0 text-green-600" />
+
+                  {faq.question}
+
                 </h3>
-                <p className="text-gray-600">{faq.answer}</p>
+
+                <p className="mt-3 pl-7 leading-7 text-gray-600">
+                  {faq.answer}
+                </p>
+
               </motion.div>
+
             ))}
+
           </div>
+
         </div>
+
       </section>
 
-      {/* Modal */}
+      {/* ================= FINAL CTA ================= */}
+
+      <section className="bg-green-800 py-20 text-center text-white">
+
+        <div className="mx-auto max-w-3xl px-5">
+
+          <h2 className="text-3xl font-extrabold md:text-4xl">
+            Ready to Partner With GhanaConsumer?
+          </h2>
+
+          <p className="mx-auto mt-5 max-w-2xl leading-8 text-green-100">
+            Take the first step towards building a meaningful partnership.
+            Submit your application today.
+          </p>
+
+          <button
+            onClick={openModal}
+            className="mt-9 inline-flex items-center rounded-full bg-white px-9 py-4 font-bold text-green-800 shadow-lg transition hover:-translate-y-1 hover:bg-green-50"
+          >
+            Join Our Affiliate Program
+            <FiArrowRight className="ml-3" />
+          </button>
+
+        </div>
+
+      </section>
+
+      {/* ================= APPLICATION MODAL ================= */}
+
       <AnimatePresence>
+
         {isModalOpen && (
-          <motion.div 
+
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            onClick={() => setIsModalOpen(false)}
+            onClick={closeModal}
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl max-w-md w-full p-6"
+
+            <motion.div
+              initial={{ opacity: 0, y: 30, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.97 }}
               onClick={(e) => e.stopPropagation()}
+              className="relative my-auto max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl sm:p-9"
             >
-              <h3 className="text-2xl font-bold mb-4">Join GhanaConsumer Affiliates</h3>
-              <p className="text-gray-600 mb-6">Enter your details to get started with our affiliate program.</p>
-              
-              <form className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Full Name</label>
-                  <input type="text" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Email Address</label>
-                  <input type="email" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Website or Social Media</label>
-                  <input type="text" className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="URL(s) where you'll promote" />
-                </div>
-                <div>
-                  <label className="flex items-center">
-                    <input type="checkbox" className="mr-2" />
-                    <span className="text-sm">I agree to the terms and conditions</span>
-                  </label>
-                </div>
-                <button
-                  type="button"
-                  className="w-full py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
-                >
-                  Submit Application
-                </button>
-              </form>
-              
-              <button 
-                className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
-                onClick={() => setIsModalOpen(false)}
+
+              {/* CLOSE BUTTON */}
+
+              <button
+                type="button"
+                onClick={closeModal}
+                disabled={isSubmitting}
+                aria-label="Close application form"
+                className="absolute right-5 top-5 rounded-full p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 disabled:opacity-50"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <FiX size={22} />
               </button>
+
+              {/* FORM HEADER */}
+
+              <div className="mb-7 pr-8">
+
+                <span className="text-sm font-bold uppercase tracking-widest text-green-700">
+                  GhanaConsumer Partners
+                </span>
+
+                <h2 className="mt-2 text-2xl font-extrabold text-gray-900 sm:text-3xl">
+                  Affiliate Application
+                </h2>
+
+                <p className="mt-3 leading-7 text-gray-600">
+                  Tell us about yourself and the platform you intend
+                  to use to promote GhanaConsumer.
+                </p>
+
+              </div>
+
+              {/* STATUS MESSAGE */}
+
+              {message && (
+
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className={`mb-6 flex items-start gap-3 rounded-lg border p-4 text-sm leading-6 ${
+                    submissionStatus === "success"
+                      ? "border-green-200 bg-green-50 text-green-800"
+                      : submissionStatus === "error"
+                      ? "border-red-200 bg-red-50 text-red-700"
+                      : "border-blue-200 bg-blue-50 text-blue-800"
+                  }`}
+                >
+
+                  {submissionStatus === "success" && (
+                    <FiCheck className="mt-1 shrink-0 text-lg" />
+                  )}
+
+                  {submissionStatus === "error" && (
+                    <FiAlertCircle className="mt-1 shrink-0 text-lg" />
+                  )}
+
+                  {submissionStatus === "loading" && (
+                    <FiLoader className="mt-1 shrink-0 animate-spin text-lg" />
+                  )}
+
+                  <span>{message}</span>
+
+                </div>
+
+              )}
+
+              {/* SUCCESS SCREEN */}
+
+              {submissionStatus === "success" ? (
+
+                <div className="py-8 text-center">
+
+                  <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100 text-green-600">
+                    <FiCheckCircle size={45} />
+                  </div>
+
+                  <h3 className="text-2xl font-bold text-gray-900">
+                    Application Received!
+                  </h3>
+
+                  <p className="mx-auto mt-4 max-w-md leading-7 text-gray-600">
+                    Thank you for your interest in partnering with
+                    GhanaConsumer. Your application has been saved
+                    and is awaiting review.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="mt-8 rounded-lg bg-green-700 px-8 py-3 font-bold text-white transition hover:bg-green-800"
+                  >
+                    Close
+                  </button>
+
+                </div>
+
+              ) : (
+
+                /* APPLICATION FORM */
+
+                <form onSubmit={handleSubmit} className="space-y-5">
+
+                  {/* FULL NAME */}
+
+                  <div>
+
+                    <label
+                      htmlFor="full_name"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Full Name *
+                    </label>
+
+                    <input
+                      id="full_name"
+                      type="text"
+                      name="full_name"
+                      value={formData.full_name}
+                      onChange={handleChange}
+                      required
+                      maxLength={120}
+                      autoComplete="name"
+                      placeholder="Enter your full name"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                    />
+
+                  </div>
+
+                  {/* EMAIL */}
+
+                  <div>
+
+                    <label
+                      htmlFor="email"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Email Address *
+                    </label>
+
+                    <input
+                      id="email"
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      required
+                      maxLength={254}
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                    />
+
+                  </div>
+
+                  {/* WEBSITE OR SOCIAL MEDIA */}
+
+                  <div>
+
+                    <label
+                      htmlFor="website_or_social"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Website or Social Media Profile *
+                    </label>
+
+                    <input
+                      id="website_or_social"
+                      type="text"
+                      name="website_or_social"
+                      value={formData.website_or_social}
+                      onChange={handleChange}
+                      required
+                      maxLength={1000}
+                      placeholder="https://instagram.com/yourprofile"
+                      className="w-full rounded-lg border border-gray-300 px-4 py-3 outline-none transition focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                    />
+
+                    <p className="mt-2 text-xs text-gray-500">
+                      Provide your website, social media profile or channel.
+                    </p>
+
+                  </div>
+
+                  {/* PROMOTION METHOD */}
+
+                  <div>
+
+                    <label
+                      htmlFor="promotion_method"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      How will you promote GhanaConsumer?
+                    </label>
+
+                    <select
+                      id="promotion_method"
+                      name="promotion_method"
+                      value={formData.promotion_method}
+                      onChange={handleChange}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                    >
+
+                      <option value="">
+                        Select a promotional method
+                      </option>
+
+                      <option value="Blog or Website">
+                        Blog or Website
+                      </option>
+
+                      <option value="Instagram">
+                        Instagram
+                      </option>
+
+                      <option value="Facebook">
+                        Facebook
+                      </option>
+
+                      <option value="TikTok">
+                        TikTok
+                      </option>
+
+                      <option value="YouTube">
+                        YouTube
+                      </option>
+
+                      <option value="X">
+                        X (Twitter)
+                      </option>
+
+                      <option value="Email Marketing">
+                        Email Marketing
+                      </option>
+
+                      <option value="Other">
+                        Other
+                      </option>
+
+                    </select>
+
+                  </div>
+
+                  {/* AUDIENCE SIZE */}
+
+                  <div>
+
+                    <label
+                      htmlFor="audience_size"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Approximate Audience Size
+                    </label>
+
+                    <select
+                      id="audience_size"
+                      name="audience_size"
+                      value={formData.audience_size}
+                      onChange={handleChange}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                    >
+
+                      <option value="">
+                        Select audience size
+                      </option>
+
+                      <option value="Below 1,000">
+                        Below 1,000
+                      </option>
+
+                      <option value="1,000 - 5,000">
+                        1,000 - 5,000
+                      </option>
+
+                      <option value="5,001 - 10,000">
+                        5,001 - 10,000
+                      </option>
+
+                      <option value="10,001 - 50,000">
+                        10,001 - 50,000
+                      </option>
+
+                      <option value="50,001 - 100,000">
+                        50,001 - 100,000
+                      </option>
+
+                      <option value="Above 100,000">
+                        Above 100,000
+                      </option>
+
+                    </select>
+
+                  </div>
+
+                  {/* ADDITIONAL MESSAGE */}
+
+                  <div>
+
+                    <label
+                      htmlFor="message"
+                      className="mb-2 block text-sm font-semibold text-gray-700"
+                    >
+                      Tell Us About Your Platform (Optional)
+                    </label>
+
+                    <textarea
+                      id="message"
+                      name="message"
+                      value={formData.message}
+                      onChange={handleChange}
+                      rows={4}
+                      maxLength={1500}
+                      placeholder="What kind of content do you create? Who is your audience?"
+                      className="w-full resize-y rounded-lg border border-gray-300 px-4 py-3 outline-none focus:border-green-600 focus:ring-2 focus:ring-green-100"
+                    />
+
+                  </div>
+
+                  {/* TERMS */}
+
+                  <div className="rounded-lg bg-gray-50 p-4">
+
+                    <label className="flex cursor-pointer items-start gap-3">
+
+                      <input
+                        type="checkbox"
+                        name="agreed_to_terms"
+                        checked={formData.agreed_to_terms}
+                        onChange={handleChange}
+                        required
+                        className="mt-1 h-4 w-4 accent-green-600"
+                      />
+
+                      <span className="text-sm leading-6 text-gray-600">
+                        I confirm that the information provided is accurate
+                        and agree to the GhanaConsumer affiliate application
+                        terms and review process.
+                      </span>
+
+                    </label>
+
+                  </div>
+
+                  {/* SUBMIT BUTTON */}
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex w-full items-center justify-center gap-3 rounded-lg bg-green-700 px-6 py-4 font-bold text-white transition hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+
+                    {isSubmitting ? (
+
+                      <>
+                        <FiLoader className="animate-spin" />
+                        Submitting Application...
+                      </>
+
+                    ) : (
+
+                      <>
+                        Submit Application
+                        <FiSend />
+                      </>
+
+                    )}
+
+                  </button>
+
+                  <p className="text-center text-xs leading-5 text-gray-500">
+                    Your information will be used by GhanaConsumer
+                    to review your affiliate application.
+                  </p>
+
+                </form>
+
+              )}
+
             </motion.div>
+
           </motion.div>
+
         )}
+
       </AnimatePresence>
+
     </div>
   );
 };

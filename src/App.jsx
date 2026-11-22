@@ -34,7 +34,7 @@ export default function App() {
 
         <Route path='/Affiliates' element={<Affiliates />} />
         <Route path='/DIY' element={<DIY />} />
-        <Route path='/Sitemap' element={<Sitemap />} />
+        <Route path="/sitemap" element={<Sitemap />} />
         <Route path='/FAQ' element={<FAQ />} />
 
         <Route path='/Contact' element={<Contact />} />

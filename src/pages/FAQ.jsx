@@ -1,338 +1,578 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { 
-  FiSearch, FiChevronDown, FiChevronUp, 
-  FiMail, FiUsers, FiBook, FiDollarSign,
-  FiShield, FiHeart, FiHelpCircle, FiMessageSquare,
-  FiThumbsUp, FiStar, FiClock, FiUser
+
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  FiSearch,
+  FiChevronDown,
+  FiMail,
+  FiUsers,
+  FiBook,
+  FiDollarSign,
+  FiShield,
+  FiHelpCircle,
+  FiThumbsUp,
+  FiStar,
+  FiMessageSquare,
+  FiUser,
+  FiX,
+  FiArrowRight,
+  FiCheckCircle,
+  FiShare2,
+  FiRefreshCw,
 } from "react-icons/fi";
 
+const categories = [
+  { id: "all", name: "All Questions", icon: FiHelpCircle },
+  { id: "general", name: "General", icon: FiUsers },
+  { id: "account", name: "Account & Profile", icon: FiUser },
+  { id: "content", name: "Content & Contributions", icon: FiBook },
+  { id: "financial", name: "Financial", icon: FiDollarSign },
+  { id: "safety", name: "Safety & Privacy", icon: FiShield },
+];
+
+const faqs = [
+  {
+    id: "what-is-ghana-consumer",
+    question: "What is Ghana Consumer and how does it help Ghanaian shoppers?",
+    answer:
+      "Ghana Consumer is a consumer information platform designed to help people in Ghana make more informed decisions when buying products and using services. The platform aims to provide useful consumer information, educational resources, shopping guidance and practical tips.",
+    category: "general",
+    helpful: 42,
+    featured: true,
+  },
+  {
+    id: "contact-support",
+    question: "How do I contact Ghana Consumer for support or inquiries?",
+    answer:
+      "You can contact the Ghana Consumer team through the official Contact Us page or the support email address published on the website. When contacting the team, explain your question clearly and include any relevant details. Do not send passwords, payment PINs or other sensitive account information.",
+    category: "general",
+    helpful: 28,
+  },
+  {
+    id: "contribute-content",
+    question: "Can I contribute content, reviews or articles to Ghana Consumer?",
+    answer:
+      "We welcome useful ideas and contributions that can help consumers. Depending on the available submission facilities, you may be able to suggest DIY guides, share consumer experiences, contribute educational articles or submit product reviews. Contributions should be honest, relevant and based on genuine experience. Submissions may be reviewed before publication.",
+    category: "content",
+    helpful: 35,
+  },
+  {
+    id: "free-to-use",
+    question: "Is Ghana Consumer free to use?",
+    answer:
+      "You can browse the publicly available information on the website without paying a subscription unless a particular service clearly states otherwise. If the platform introduces paid services, fees and applicable conditions should be explained before you use them.",
+    category: "financial",
+    helpful: 56,
+    featured: true,
+  },
+  {
+    id: "create-account",
+    question: "How do I create an account and what are the benefits?",
+    answer:
+      "If account registration is available, use the Sign Up option on the website and follow the registration instructions. Depending on the features enabled, an account may allow you to manage your profile, save useful information or participate in community activities. Only provide information requested through the official website.",
+    category: "account",
+    helpful: 31,
+  },
+  {
+    id: "review-accuracy",
+    question: "How does Ghana Consumer ensure the accuracy of product reviews?",
+    answer:
+      "Product information and reviews should be assessed carefully before publication. Useful review standards include checking the source of information, distinguishing personal opinions from verified facts, identifying sponsored content and correcting errors when reliable new information becomes available. Readers should also check product specifications and seller information before making a purchase.",
+    category: "safety",
+    helpful: 47,
+  },
+  {
+    id: "consumer-rights",
+    question: "What should I do if I have a consumer rights issue in Ghana?",
+    answer:
+      "Start by keeping your receipt, order confirmation, photographs and communication with the seller. Contact the business and clearly explain the problem and the resolution you want. If the issue remains unresolved, consider contacting the relevant consumer protection or regulatory authority in Ghana. Keep copies of all reports and responses.",
+    category: "safety",
+    helpful: 39,
+    featured: true,
+  },
+  {
+    id: "price-updates",
+    question: "How often is price information updated?",
+    answer:
+      "Prices can change frequently depending on the retailer, location, availability and market conditions. Always check the retailer's current price before making a purchase. Where price information is displayed on Ghana Consumer, check its stated update date and any conditions attached to the listing.",
+    category: "general",
+    helpful: 27,
+  },
+  {
+    id: "regional-coverage",
+    question: "Does Ghana Consumer cover products and services across all regions of Ghana?",
+    answer:
+      "Ghana Consumer aims to provide information relevant to consumers throughout Ghana. However, the availability of products, services and local information can differ from one region to another. Always confirm availability, delivery options and prices directly with the relevant business.",
+    category: "general",
+    helpful: 22,
+  },
+  {
+    id: "business-partnerships",
+    question: "How can businesses partner with Ghana Consumer?",
+    answer:
+      "Businesses interested in working with Ghana Consumer can use the official contact channel to introduce their organisation and explain the proposed partnership. Any advertising, sponsored content or commercial relationship should be clearly identified so consumers can distinguish promotional material from independent information.",
+    category: "content",
+    helpful: 19,
+  },
+  {
+    id: "saved-information",
+    question: "Can I save questions or information for later?",
+    answer:
+      "You can use your browser's bookmark feature to save the FAQ page. If a personal account and saved-content feature are introduced, follow the instructions provided on the website. Browser bookmarks are stored by your browser and may not appear on other devices.",
+    category: "account",
+    helpful: 16,
+  },
+  {
+    id: "report-wrong-information",
+    question: "What should I do if I find incorrect information on the website?",
+    answer:
+      "Please contact the website team through the official contact channel. Include the page address, explain what appears incorrect and, where possible, provide a reliable source that helps clarify the issue. This makes it easier for the team to review the information.",
+    category: "safety",
+    helpful: 24,
+  },
+];
+
+const readHelpfulVotes = () => {
+  try {
+    return JSON.parse(localStorage.getItem("ghanaConsumerFAQHelpful")) || [];
+  } catch {
+    return [];
+  }
+};
+
 const FAQ = () => {
-  const [openIndex, setOpenIndex] = useState(null);
+  const [openId, setOpenId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
+  const [helpfulVotes, setHelpfulVotes] = useState(readHelpfulVotes);
+  const [notice, setNotice] = useState("");
 
-  const toggleFAQ = (index) => {
-    setOpenIndex(openIndex === index ? null : index);
+  useEffect(() => {
+    localStorage.setItem(
+      "ghanaConsumerFAQHelpful",
+      JSON.stringify(helpfulVotes)
+    );
+  }, [helpfulVotes]);
+
+  const filteredFaqs = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return faqs.filter((faq) => {
+      const matchesSearch =
+        !query ||
+        faq.question.toLowerCase().includes(query) ||
+        faq.answer.toLowerCase().includes(query);
+
+      const matchesCategory =
+        activeCategory === "all" || faq.category === activeCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [searchQuery, activeCategory]);
+
+  const featuredFaqs = filteredFaqs.filter((faq) => faq.featured);
+  const regularFaqs = filteredFaqs.filter((faq) => !faq.featured);
+
+  const toggleFAQ = (id) => {
+    setOpenId((current) => (current === id ? null : id));
   };
 
-  const categories = [
-    { id: "all", name: "All Questions", icon: <FiHelpCircle /> },
-    { id: "general", name: "General", icon: <FiUsers /> },
-    { id: "account", name: "Account & Profile", icon: <FiUser /> },
-    { id: "content", name: "Content & Contributions", icon: <FiBook /> },
-    { id: "financial", name: "Financial", icon: <FiDollarSign /> },
-    { id: "safety", name: "Safety & Privacy", icon: <FiShield /> }
-  ];
+  const toggleHelpful = (id) => {
+    setHelpfulVotes((current) =>
+      current.includes(id)
+        ? current.filter((item) => item !== id)
+        : [...current, id]
+    );
 
-  const faqs = [
-    {
-      question: "What is Ghana Consumer and how does it help Ghanaian shoppers?",
-      answer: "Ghana Consumer is Ghana's premier consumer empowerment platform dedicated to providing reliable product reviews, price comparisons, shopping guides, and consumer rights information specifically tailored for the Ghanaian market. We help you make informed purchasing decisions, save money, and understand your rights as a consumer in Ghana.",
-      category: "general",
-      likes: 42,
-      featured: true
-    },
-    {
-      question: "How do I contact Ghana Consumer for support or inquiries?",
-      answer: "You can reach our support team through multiple channels: 1) Email us at support@ghanaconsumer.com, 2) Use the contact form on our Contact Us page, 3) Call our helpline at 0302-XXXXXX during business hours (8AM-5PM GMT), or 4) Message us on our social media platforms (@GhanaConsumer on Facebook, Twitter, and Instagram).",
-      category: "general",
-      likes: 28
-    },
-    {
-      question: "Can I contribute content, reviews, or articles to Ghana Consumer?",
-      answer: "Absolutely! We welcome contributions from knowledgeable consumers across Ghana. You can: 1) Submit product reviews through your account dashboard, 2) Apply to become a regular contributor through our Affiliates page, 3) Share your DIY guides and money-saving tips, or 4) Participate in our community forum. All submissions are reviewed by our editorial team to maintain quality standards.",
-      category: "content",
-      likes: 35
-    },
-    {
-      question: "Is Ghana Consumer completely free to use?",
-      answer: "Yes, access to all our consumer resources, product reviews, price comparisons, and educational content is completely free for all users. We are funded through ethical advertising, affiliate partnerships with Ghanaian businesses, and sponsored content that is always clearly marked as such. We never charge consumers for access to basic information.",
-      category: "financial",
-      likes: 56,
-      featured: true
-    },
-    {
-      question: "How do I create an account and what are the benefits?",
-      answer: "Creating an account is simple: click 'Sign Up' in the top navigation, provide your email address, create a password, and verify your email. Account benefits include: saving favorite products, contributing reviews, receiving personalized deal alerts, participating in our community forum, and tracking your consumer rights inquiries.",
-      category: "account",
-      likes: 31
-    },
-    {
-      question: "How does Ghana Consumer ensure the accuracy of product reviews?",
-      answer: "We maintain rigorous review standards through: 1) Verification of purchase for product reviews, 2) Expert evaluation of technical products, 3) Regular price accuracy checks across major Ghanaian retailers, 4) User rating system that promotes helpful reviews, and 5) Clear disclosure of sponsored content. We also collaborate with the Ghana Standards Authority for product testing when possible.",
-      category: "safety",
-      likes: 47
-    },
-    {
-      question: "What should I do if I have a consumer rights issue in Ghana?",
-      answer: "If you encounter issues with a product or service: 1) Document everything (receipts, photos, communications), 2) Contact the seller/service provider directly, 3) If unresolved, file a report through our Consumer Assistance portal, 4) We can help mediate with the business, 5) For serious issues, we'll connect you with the Ghana Consumer Protection Council or relevant regulatory body.",
-      category: "safety",
-      likes: 39,
-      featured: true
-    },
-    {
-      question: "How often is price information updated on Ghana Consumer?",
-      answer: "We update prices regularly through: 1) Automated tracking of major Ghanaian e-commerce sites (daily updates), 2) Manual verification of physical store prices (weekly), 3) User-submitted price reports (verified within 24 hours), and 4) Seasonal market surveys. All price listings include a 'last updated' timestamp so you know how current the information is.",
-      category: "general",
-      likes: 27
-    },
-    {
-      question: "Does Ghana Consumer cover products and services across all regions of Ghana?",
-      answer: "Yes, we strive to cover consumer issues and products available throughout Ghana, including Accra, Kumasi, Takoradi, Tamale, and rural areas. However, availability of certain products or services may vary by region. Our platform allows users to filter information by region to see what's available in their specific location.",
-      category: "general",
-      likes: 22
-    },
-    {
-      question: "How can businesses partner with Ghana Consumer?",
-      answer: "We offer several ethical partnership options for Ghanaian businesses: 1) Sponsored content and product features (clearly marked), 2) Advertising opportunities, 3) Participation in our trusted merchant program, 4) Collaboration on consumer education initiatives, and 5) Response platform for addressing customer feedback. Businesses can contact us through our Enterprise Partnerships page.",
-      category: "content",
-      likes: 19
+    setNotice(
+      helpfulVotes.includes(id)
+        ? "Your helpful vote has been removed."
+        : "Thank you for your feedback!"
+    );
+
+    setTimeout(() => setNotice(""), 2500);
+  };
+
+  const shareFAQ = async (faq) => {
+    const shareData = {
+      title: faq.question,
+      text: faq.answer,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(
+          `${faq.question}\n\n${faq.answer}\n\n${window.location.href}`
+        );
+        setNotice("Question and answer copied successfully.");
+        setTimeout(() => setNotice(""), 2500);
+      } else {
+        setNotice("Sharing is not supported by this browser.");
+        setTimeout(() => setNotice(""), 2500);
+      }
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        setNotice("Unable to share this question right now.");
+        setTimeout(() => setNotice(""), 2500);
+      }
     }
-  ];
+  };
 
-  const filteredFaqs = faqs.filter(faq => {
-    const matchesSearch = faq.question.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = activeCategory === "all" || faq.category === activeCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const clearFilters = () => {
+    setSearchQuery("");
+    setActiveCategory("all");
+    setOpenId(null);
+  };
 
-  const featuredFaqs = filteredFaqs.filter(faq => faq.featured);
-  const regularFaqs = filteredFaqs.filter(faq => !faq.featured);
+  const contactEmail = "support@ghanaconsumer.com";
+
+  const openSupportEmail = () => {
+    const subject = encodeURIComponent("Ghana Consumer Support Request");
+    const body = encodeURIComponent(
+      "Hello Ghana Consumer Team,\n\nI need assistance with the following:\n\n"
+    );
+
+    window.location.href = `mailto:${contactEmail}?subject=${subject}&body=${body}`;
+  };
+
+  const FAQCard = ({ faq, featured = false }) => {
+    const isOpen = openId === faq.id;
+    const hasVoted = helpfulVotes.includes(faq.id);
+    const totalHelpful = faq.helpful + (hasVoted ? 1 : 0);
+
+    return (
+      <motion.article
+        layout
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`overflow-hidden rounded-2xl border transition ${
+          featured
+            ? "border-amber-200 bg-gradient-to-br from-amber-50 to-white shadow-sm"
+            : "border-slate-200 bg-white shadow-sm hover:shadow-md"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => toggleFAQ(faq.id)}
+          aria-expanded={isOpen}
+          aria-controls={`faq-answer-${faq.id}`}
+          className="flex w-full items-center justify-between gap-4 p-5 text-left sm:p-6"
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            {featured && (
+              <span className="mt-1 shrink-0 text-amber-500">
+                <FiStar />
+              </span>
+            )}
+
+            <span className="font-semibold leading-7 text-slate-900">
+              {faq.question}
+            </span>
+          </div>
+
+          <motion.span
+            animate={{ rotate: isOpen ? 180 : 0 }}
+            className="shrink-0 text-slate-500"
+          >
+            <FiChevronDown className="text-xl" />
+          </motion.span>
+        </button>
+
+        <AnimatePresence initial={false}>
+          {isOpen && (
+            <motion.div
+              id={`faq-answer-${faq.id}`}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="overflow-hidden"
+            >
+              <div className="border-t border-slate-100 px-5 pb-5 pt-4 sm:px-6 sm:pb-6">
+                <p className="whitespace-pre-line text-sm leading-7 text-slate-600 sm:text-base">
+                  {faq.answer}
+                </p>
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <button
+                      type="button"
+                      onClick={() => toggleHelpful(faq.id)}
+                      aria-pressed={hasVoted}
+                      className={`inline-flex items-center gap-2 text-sm font-medium transition ${
+                        hasVoted
+                          ? "text-green-700"
+                          : "text-slate-500 hover:text-green-700"
+                      }`}
+                    >
+                      <FiThumbsUp />
+                      {hasVoted ? "Helpful" : "Was this helpful?"}
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {totalHelpful}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => shareFAQ(faq)}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition hover:text-amber-700"
+                    >
+                      <FiShare2 /> Share
+                    </button>
+                  </div>
+
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-400">
+                    <FiCheckCircle /> Answer available
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.article>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
+    <main className="min-h-screen bg-slate-50 text-slate-800">
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-amber-50 via-white to-green-50 px-4 py-16 sm:py-20">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-amber-200/30 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-20 h-72 w-72 rounded-full bg-green-200/30 blur-3xl" />
+
         <motion.header
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="relative mx-auto max-w-4xl text-center"
         >
-          <motion.div 
-            initial={{ scale: 0.9 }}
-            animate={{ scale: 1 }}
-            className="inline-flex items-center justify-center p-3 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full mb-6"
-          >
-            <FiHelpCircle className="text-white text-2xl" />
-          </motion.div>
-          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-600 via-green-600 to-red-600">
-            Frequently Asked Questions
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-600 text-white shadow-lg shadow-amber-600/20">
+            <FiHelpCircle className="text-3xl" />
+          </div>
+
+          <span className="inline-flex rounded-full border border-amber-200 bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-widest text-amber-700">
+            Help Centre · Ghana Consumer
+          </span>
+
+          <h1 className="mt-5 text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
+            Frequently Asked
+            <span className="mt-2 block bg-gradient-to-r from-amber-600 via-green-700 to-red-600 bg-clip-text text-transparent">
+              Questions
+            </span>
           </h1>
-          <p className="text-lg text-gray-600 mt-3 max-w-2xl mx-auto">
-            Find answers to common questions about Ghana Consumer and how we empower shoppers across Ghana
+
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
+            Find helpful information about Ghana Consumer, our resources,
+            consumer awareness and how to get support.
           </p>
         </motion.header>
+      </section>
 
-        {/* Search and Filter Section */}
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-2xl p-6 shadow-lg mb-10 border border-gray-100"
-        >
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="flex-1 w-full">
-              <label htmlFor="search" className="sr-only">Search FAQs</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiSearch className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  id="search"
-                  type="text"
-                  placeholder="Search for answers..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-          </div>
+      {/* Search */}
+      <section className="relative z-10 mx-auto -mt-5 max-w-5xl px-4">
+        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-lg sm:p-7">
+          <label
+            htmlFor="faq-search"
+            className="mb-3 block text-sm font-bold text-slate-800"
+          >
+            What would you like to know?
+          </label>
 
-          {/* Category Filters */}
-          <div className="flex flex-wrap gap-2 mt-4">
-            {categories.map(category => (
+          <div className="relative">
+            <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-400" />
+            <input
+              id="faq-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search questions, topics or answers..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-4 pl-12 pr-12 text-sm outline-none transition placeholder:text-slate-400 focus:border-amber-500 focus:ring-4 focus:ring-amber-100"
+            />
+
+            {searchQuery && (
               <button
-                key={category.id}
-                onClick={() => setActiveCategory(category.id)}
-                className={`flex items-center px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  activeCategory === category.id 
-                    ? "bg-amber-500 text-white" 
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+                type="button"
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
               >
-                <span className="mr-2">{category.icon}</span>
-                {category.name}
+                <FiX />
               </button>
-            ))}
+            )}
           </div>
-        </motion.div>
 
-        {/* Featured FAQs */}
-        {featuredFaqs.length > 0 && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="mb-10"
-          >
-            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-              <FiStar className="text-amber-500 mr-2" />
-              Popular Questions
-            </h2>
-            <div className="space-y-4">
-              {featuredFaqs.map((faq, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="bg-gradient-to-r from-amber-50 to-amber-100 border border-amber-200 rounded-2xl overflow-hidden"
-                >
+          <div className="mt-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="text-sm font-bold text-slate-700">
+                Browse by category
+              </p>
+              <p className="text-xs text-slate-500">
+                {filteredFaqs.length} questions found
+              </p>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {categories.map((category) => {
+                const Icon = category.icon;
+                const active = activeCategory === category.id;
+
+                return (
                   <button
-                    onClick={() => toggleFAQ(`featured-${index}`)}
-                    className="w-full text-left p-6 flex justify-between items-center font-semibold text-gray-800"
+                    key={category.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveCategory(category.id);
+                      setOpenId(null);
+                    }}
+                    aria-pressed={active}
+                    className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                      active
+                        ? "bg-amber-600 text-white shadow-sm"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
                   >
-                    <span>{faq.question}</span>
-                    {openIndex === `featured-${index}` ? (
-                      <FiChevronUp className="flex-shrink-0 ml-4" />
-                    ) : (
-                      <FiChevronDown className="flex-shrink-0 ml-4" />
-                    )}
+                    <Icon />
+                    {category.name}
                   </button>
-                  <AnimatePresence>
-                    {openIndex === `featured-${index}` && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="px-6 pb-6"
-                      >
-                        <p className="text-gray-600">{faq.answer}</p>
-                        <div className="flex items-center mt-4 text-sm text-gray-500">
-                          <button className="flex items-center mr-4 hover:text-amber-600">
-                            <FiThumbsUp className="mr-1" />
-                            <span>{faq.likes} helpful</span>
-                          </button>
-                          <button className="flex items-center hover:text-amber-600">
-                            <FiMessageSquare className="mr-1" />
-                            <span>Comment</span>
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              ))}
+                );
+              })}
             </div>
-          </motion.div>
-        )}
-
-        {/* Regular FAQs */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mb-10"
-        >
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">All Questions</h2>
-          <div className="space-y-4">
-            {regularFaqs.map((faq, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
-              >
-                <button
-                  onClick={() => toggleFAQ(`regular-${index}`)}
-                  className="w-full text-left p-6 flex justify-between items-center font-medium text-gray-800"
-                >
-                  <span>{faq.question}</span>
-                  {openIndex === `regular-${index}` ? (
-                    <FiChevronUp className="flex-shrink-0 ml-4" />
-                  ) : (
-                    <FiChevronDown className="flex-shrink-0 ml-4" />
-                  )}
-                </button>
-                <AnimatePresence>
-                  {openIndex === `regular-${index}` && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="px-6 pb-6"
-                    >
-                      <p className="text-gray-600">{faq.answer}</p>
-                      <div className="flex items-center mt-4 text-sm text-gray-500">
-                        <button className="flex items-center mr-4 hover:text-amber-600">
-                          <FiThumbsUp className="mr-1" />
-                          <span>{faq.likes} helpful</span>
-                        </button>
-                        <button className="flex items-center hover:text-amber-600">
-                          <FiMessageSquare className="mr-1" />
-                          <span>Comment</span>
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            ))}
           </div>
-        </motion.div>
+        </div>
+      </section>
 
-        {/* No Results */}
-        {filteredFaqs.length === 0 && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-16 bg-white rounded-2xl shadow-sm"
+      {/* FAQ content */}
+      <section className="mx-auto max-w-5xl px-4 py-14">
+        {filteredFaqs.length > 0 ? (
+          <div className="space-y-10">
+            {featuredFaqs.length > 0 && (
+              <section>
+                <div className="mb-5 flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <FiStar />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-extrabold text-slate-900">
+                      Popular Questions
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Answers to some of the most important questions.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {featuredFaqs.map((faq) => (
+                    <FAQCard key={faq.id} faq={faq} featured />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {regularFaqs.length > 0 && (
+              <section>
+                <div className="mb-5">
+                  <h2 className="text-xl font-extrabold text-slate-900">
+                    {activeCategory === "all" && !searchQuery
+                      ? "All Questions"
+                      : "More Answers"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Browse the answers below to find what you need.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  {regularFaqs.map((faq) => (
+                    <FAQCard key={faq.id} faq={faq} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center"
           >
-            <div className="inline-flex items-center justify-center p-4 bg-gray-100 rounded-full mb-4">
-              <FiSearch className="text-gray-500 text-2xl" />
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+              <FiSearch className="text-2xl" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">No questions found</h3>
-            <p className="text-gray-600 max-w-md mx-auto">
-              We couldn't find any questions matching "{searchQuery}". Try adjusting your search or filter.
+            <h2 className="mt-5 text-xl font-extrabold text-slate-900">
+              No questions found
+            </h2>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+              We couldn't find an answer matching your search. Try different
+              words or browse another category.
             </p>
             <button
-              onClick={() => { setSearchQuery(""); setActiveCategory("all"); }}
-              className="mt-4 px-4 py-2 text-amber-600 hover:text-amber-700 font-medium"
+              type="button"
+              onClick={clearFilters}
+              className="mt-6 inline-flex items-center gap-2 rounded-full bg-amber-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-amber-700"
             >
-              Clear filters
+              <FiRefreshCw /> Clear filters
             </button>
           </motion.div>
         )}
+      </section>
 
-        {/* Support CTA */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-8 text-white text-center"
-        >
-          <h2 className="text-2xl font-bold mb-4">Still need help?</h2>
-          <p className="mb-6 max-w-2xl mx-auto">
-            Can't find the answer you're looking for? Our support team is here to help you with any questions about consumer rights in Ghana.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-white text-green-600 px-6 py-3 rounded-full font-semibold hover:bg-gray-100 transition-colors flex items-center justify-center">
-              <FiMail className="mr-2" />
-              Contact Support
-            </button>
-            <button className="border-2 border-white text-white px-6 py-3 rounded-full font-semibold hover:bg-white hover:text-green-600 transition-colors">
-              Visit Community Forum
-            </button>
+      {/* Contact support */}
+      <section className="px-4 pb-16">
+        <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl bg-gradient-to-br from-green-700 to-green-600 px-6 py-12 text-center text-white shadow-xl sm:px-12">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
+            <FiMessageSquare className="text-2xl" />
           </div>
-        </motion.div>
-      </div>
-    </div>
+
+          <h2 className="mt-5 text-2xl font-extrabold sm:text-3xl">
+            Still need help?
+          </h2>
+
+          <p className="mx-auto mt-3 max-w-2xl leading-7 text-green-50">
+            Can't find the answer you're looking for? Get in touch with the
+            Ghana Consumer team through our official support channel.
+          </p>
+
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={openSupportEmail}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-3 font-bold text-green-700 transition hover:bg-green-50"
+            >
+              <FiMail /> Contact Support
+            </button>
+
+            <a
+              href="/contact"
+              className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-white/80 px-7 py-3 font-bold text-white transition hover:bg-white hover:text-green-700"
+            >
+              Visit Contact Page <FiArrowRight />
+            </a>
+          </div>
+
+          <p className="mt-5 text-xs text-green-100">
+            Support email: {contactEmail}
+          </p>
+        </div>
+      </section>
+
+      {/* Notification */}
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 15 }}
+            role="status"
+            className="fixed bottom-5 left-1/2 z-[80] -translate-x-1/2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-medium text-white shadow-xl"
+          >
+            {notice}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </main>
   );
 };
 
