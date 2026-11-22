@@ -1,6 +1,9 @@
 
 import { useState } from "react";
+import emailjs from "@emailjs/browser";
+import { supabase } from "../lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
+
 import {
   FiHeart,
   FiShield,
@@ -29,7 +32,9 @@ const Sitemap = () => {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [emailWarning, setEmailWarning] = useState("");
 
   const policies = [
     {
@@ -40,7 +45,6 @@ const Sitemap = () => {
       shortDescription:
         "Help people know what is really in their food.",
       icon: FiTag,
-      color: "amber",
       bg: "bg-amber-50",
       iconColor: "text-amber-600",
     },
@@ -52,7 +56,6 @@ const Sitemap = () => {
       shortDescription:
         "Protect children from unhealthy food marketing.",
       icon: FiShield,
-      color: "rose",
       bg: "bg-rose-50",
       iconColor: "text-rose-600",
     },
@@ -64,7 +67,6 @@ const Sitemap = () => {
       shortDescription:
         "Make nutritious food more affordable and accessible.",
       icon: FiDollarSign,
-      color: "emerald",
       bg: "bg-emerald-50",
       iconColor: "text-emerald-600",
     },
@@ -76,7 +78,6 @@ const Sitemap = () => {
       shortDescription:
         "Ensure healthier meals in schools and public institutions.",
       icon: FiBookOpen,
-      color: "blue",
       bg: "bg-blue-50",
       iconColor: "text-blue-600",
     },
@@ -91,37 +92,163 @@ const Sitemap = () => {
     }));
 
     setError("");
+    setEmailWarning("");
   };
 
-  const handleSubmit = (e) => {
+  // SUBMIT PETITION
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
 
+    if (isSubmitting) return;
+
+    setError("");
+    setEmailWarning("");
+
+    // Validate full name
     if (!formData.fullName.trim()) {
       setError("Please enter your full name.");
       return;
     }
 
+    // Validate email
     if (!formData.email.trim()) {
       setError("Please enter your email address.");
       return;
     }
 
+    if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        formData.email.trim()
+      )
+    ) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    // Validate country
     if (!formData.country.trim()) {
       setError("Please enter your country.");
       return;
     }
 
+    // Validate consent
     if (!formData.consent) {
       setError("Please confirm your support before signing.");
       return;
     }
 
-    // This confirms the form locally.
-    // Connect a backend or petition service to save signatures.
-    setSubmitted(true);
+    setIsSubmitting(true);
+
+    // Prepare signature data
+    const signature = {
+      full_name: formData.fullName.trim(),
+      email: formData.email.trim().toLowerCase(),
+      country: formData.country.trim(),
+      city: formData.city.trim() || null,
+      consent: true,
+      campaign: "A Call for Healthier Food Environments",
+    };
+
+    try {
+      // --------------------------------
+      // STEP 1: SAVE SIGNATURE TO SUPABASE
+      // --------------------------------
+
+      const { error: databaseError } = await supabase
+        .from("petition_signatures")
+        .insert([signature]);
+
+      if (databaseError) {
+        console.error(
+          "Supabase submission error:",
+          databaseError
+        );
+
+        throw new Error(
+          "We couldn't save your signature. Please try again."
+        );
+      }
+
+      console.log(
+        "Petition signature successfully saved to Supabase."
+      );
+
+      // --------------------------------
+      // STEP 2: SEND EMAIL NOTIFICATION
+      // --------------------------------
+
+      const serviceId =
+        import.meta.env.VITE_EMAILJS_SERVICE_ID;
+
+      const templateId =
+        import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+
+      const publicKey =
+        import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
+
+      if (serviceId && templateId && publicKey) {
+        try {
+          await emailjs.send(
+            serviceId,
+            templateId,
+            {
+              full_name: signature.full_name,
+              email: signature.email,
+              country: signature.country,
+              city: signature.city || "Not provided",
+              consent: "Yes",
+              campaign: signature.campaign,
+              signed_at: new Date().toISOString(),
+            },
+            { publicKey }
+          );
+
+          console.log(
+            "Email notification sent successfully."
+          );
+        } catch (emailError) {
+          console.error(
+            "EmailJS notification error:",
+            emailError
+          );
+
+          setEmailWarning(
+            "Your signature was saved successfully, but the email notification could not be sent."
+          );
+        }
+      } else {
+        console.warn(
+          "EmailJS credentials are not configured."
+        );
+
+        setEmailWarning(
+          "Your signature was saved successfully. Email notifications are currently unavailable."
+        );
+      }
+
+      // --------------------------------
+      // STEP 3: SHOW SUCCESS MESSAGE
+      // --------------------------------
+
+      setSubmitted(true);
+
+    } catch (submissionError) {
+      console.error(
+        "Petition submission failed:",
+        submissionError
+      );
+
+      setError(
+        submissionError.message ||
+        "We couldn't submit your signature. Please try again."
+      );
+
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  // RESET FORM
   const resetForm = () => {
     setFormData({
       fullName: "",
@@ -130,23 +257,31 @@ const Sitemap = () => {
       city: "",
       consent: false,
     });
+
     setSubmitted(false);
     setError("");
+    setEmailWarning("");
   };
 
+  // ANIMATIONS
   const fadeUp = {
     hidden: { opacity: 0, y: 25 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, ease: "easeOut" },
+      transition: {
+        duration: 0.6,
+        ease: "easeOut",
+      },
     },
   };
 
   const stagger = {
     hidden: {},
     visible: {
-      transition: { staggerChildren: 0.12 },
+      transition: {
+        staggerChildren: 0.12,
+      },
     },
   };
 
@@ -169,6 +304,7 @@ const Sitemap = () => {
             variants={stagger}
             className="max-w-4xl mx-auto text-center"
           >
+
             <motion.div variants={fadeUp}>
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-white/20 bg-white/10 text-green-100 text-sm font-semibold mb-7">
                 <FiHeart className="text-red-300" />
@@ -205,7 +341,7 @@ const Sitemap = () => {
                 href="#sign-petition"
                 className="inline-flex justify-center items-center gap-3 px-8 py-4 rounded-xl bg-white text-green-900 font-bold shadow-xl hover:bg-green-50 transition-all hover:-translate-y-1"
               >
-               <FiHeart />
+                <FiHeart />
                 Sign the Petition
                 <FiArrowRight />
               </a>
@@ -225,13 +361,16 @@ const Sitemap = () => {
               <span className="flex items-center gap-2">
                 <FiShield /> Protect Our Health
               </span>
+
               <span className="flex items-center gap-2">
                 <FiUsers /> Protect Our Children
               </span>
+
               <span className="flex items-center gap-2">
                 <FiGlobe /> Protect Our Future
               </span>
             </motion.div>
+
           </motion.div>
         </div>
       </section>
@@ -252,7 +391,9 @@ const Sitemap = () => {
 
             <h2 className="mt-4 text-3xl md:text-4xl font-extrabold text-gray-900">
               Everyone Deserves Access to
-              <span className="text-green-700"> Healthy Food</span>
+              <span className="text-green-700">
+                {" "}Healthy Food
+              </span>
             </h2>
 
             <p className="mt-6 text-gray-600 text-lg leading-relaxed max-w-3xl mx-auto">
@@ -314,8 +455,12 @@ const Sitemap = () => {
                   <div className="flex items-start gap-5">
 
                     <div className="flex-shrink-0">
-                      <div className={`w-14 h-14 rounded-xl ${policy.bg} flex items-center justify-center`}>
-                        <Icon className={`text-2xl ${policy.iconColor}`} />
+                      <div
+                        className={`w-14 h-14 rounded-xl ${policy.bg} flex items-center justify-center`}
+                      >
+                        <Icon
+                          className={`text-2xl ${policy.iconColor}`}
+                        />
                       </div>
                     </div>
 
@@ -362,6 +507,7 @@ const Sitemap = () => {
           variants={fadeUp}
           className="max-w-5xl mx-auto text-center"
         >
+
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 mb-6">
             <FiHeart className="text-3xl text-green-300" />
           </div>
@@ -386,6 +532,7 @@ const Sitemap = () => {
             Add Your Voice
             <FiArrowRight />
           </a>
+
         </motion.div>
       </section>
 
@@ -437,8 +584,12 @@ const Sitemap = () => {
                   <div className="w-11 h-11 flex-shrink-0 rounded-lg bg-white/10 flex items-center justify-center">
                     <FiShield className="text-xl text-green-300" />
                   </div>
+
                   <div>
-                    <h4 className="font-bold">Your Privacy Matters</h4>
+                    <h4 className="font-bold">
+                      Your Privacy Matters
+                    </h4>
+
                     <p className="text-sm text-green-100 mt-1">
                       Your personal information should not be
                       publicly displayed.
@@ -450,8 +601,10 @@ const Sitemap = () => {
                   <div className="w-11 h-11 flex-shrink-0 rounded-lg bg-white/10 flex items-center justify-center">
                     <FiUsers className="text-xl text-green-300" />
                   </div>
+
                   <div>
                     <h4 className="font-bold">Stand Together</h4>
+
                     <p className="text-sm text-green-100 mt-1">
                       Add your voice to the call for healthier
                       food environments.
@@ -463,8 +616,10 @@ const Sitemap = () => {
                   <div className="w-11 h-11 flex-shrink-0 rounded-lg bg-white/10 flex items-center justify-center">
                     <FiHeart className="text-xl text-green-300" />
                   </div>
+
                   <div>
                     <h4 className="font-bold">Protect Our Future</h4>
+
                     <p className="text-sm text-green-100 mt-1">
                       Support healthier choices for present and
                       future generations.
@@ -478,9 +633,11 @@ const Sitemap = () => {
                 <p className="font-extrabold text-lg">
                   HEALTHIER FOOD.
                 </p>
+
                 <p className="font-extrabold text-lg">
                   HEALTHIER PEOPLE.
                 </p>
+
                 <p className="font-extrabold text-lg text-green-300">
                   HEALTHIER FUTURE.
                 </p>
@@ -502,6 +659,7 @@ const Sitemap = () => {
                     exit={{ opacity: 0 }}
                     className="py-12 text-center"
                   >
+
                     <div className="w-20 h-20 mx-auto rounded-full bg-green-100 flex items-center justify-center">
                       <FiCheck className="text-4xl text-green-700" />
                     </div>
@@ -511,9 +669,15 @@ const Sitemap = () => {
                     </h3>
 
                     <p className="mt-4 text-gray-600 leading-relaxed max-w-md mx-auto">
-                      Your petition form has been completed successfully.
-                      Your support for healthier food environments matters.
+                      Your signature has been successfully recorded.
+                      Thank you for supporting healthier food environments.
                     </p>
+
+                    {emailWarning && (
+                      <p className="mt-4 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 max-w-md mx-auto">
+                        {emailWarning}
+                      </p>
+                    )}
 
                     <p className="mt-5 text-green-800 font-bold">
                       APPROVE THE 4 DOUBLE-DUTY FOOD POLICIES!
@@ -527,10 +691,6 @@ const Sitemap = () => {
                       Return to Form
                     </button>
 
-                    <p className="mt-5 text-xs text-gray-400">
-                      This is a local confirmation only. Your signature
-                      has not been transmitted or stored.
-                    </p>
                   </motion.div>
 
                 ) : (
@@ -552,7 +712,10 @@ const Sitemap = () => {
                       </p>
                     </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <form
+                      onSubmit={handleSubmit}
+                      className="space-y-6"
+                    >
 
                       {/* FULL NAME */}
                       <div>
@@ -703,14 +866,20 @@ const Sitemap = () => {
                         </div>
                       )}
 
-                      {/* SUBMIT */}
+                      {/* SUBMIT BUTTON */}
                       <button
                         type="submit"
-                        className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-xl bg-green-700 text-white font-bold text-lg shadow-lg hover:bg-green-800 hover:-translate-y-0.5 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-green-200"
+                        disabled={isSubmitting}
+                        aria-live="polite"
+                        className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-xl bg-green-700 text-white font-bold text-lg shadow-lg hover:bg-green-800 hover:-translate-y-0.5 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-green-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0"
                       >
                         <FiSend />
-                        Sign the Petition
-                        <FiArrowRight />
+
+                        {isSubmitting
+                          ? "Submitting Your Signature..."
+                          : "Sign the Petition"}
+
+                        {!isSubmitting && <FiArrowRight />}
                       </button>
 
                       <p className="text-center text-xs text-gray-400">
@@ -740,6 +909,7 @@ const Sitemap = () => {
           variants={fadeUp}
           className="max-w-5xl mx-auto text-center"
         >
+
           <span className="inline-flex items-center gap-2 text-green-700 font-bold uppercase tracking-widest text-sm">
             <FiHeart />
             Our Health. Our Future.
@@ -760,11 +930,14 @@ const Sitemap = () => {
           </p>
 
           <div className="mt-10 p-8 md:p-12 rounded-2xl bg-green-950 text-white shadow-xl">
+
             <h3 className="text-2xl md:text-4xl font-black leading-tight">
               HEALTHIER FOOD.
+
               <span className="block text-green-300">
                 HEALTHIER PEOPLE.
               </span>
+
               <span className="block">
                 HEALTHIER FUTURE.
               </span>
@@ -781,6 +954,7 @@ const Sitemap = () => {
               Sign the Petition
               <FiArrowRight />
             </a>
+
           </div>
         </motion.div>
       </section>
@@ -810,5 +984,4 @@ const Sitemap = () => {
   );
 };
 
-// Retained original default export
 export default Sitemap;
