@@ -165,7 +165,7 @@ export default function Header() {
         </Navbar.Link>
         <Navbar.Link active={path === "/sitemap"} as={"div"}>
           <Link to="/sitemap" aria-label="Sitemap page">
-            Sitemap
+            Sign the Petition
           </Link>
         </Navbar.Link>
         <Navbar.Link active={path === "/diy"} as={"div"}>
