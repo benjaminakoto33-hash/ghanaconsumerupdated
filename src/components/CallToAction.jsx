@@ -21,7 +21,7 @@ export default function CallToAction() {
       title: "🎨 Brighten Your World with Azar Paints 🌍",
       description: "For decades, Azar Paints has been a trusted name in Ghana, delivering high-quality paints that bring life, beauty, and durability to every surface. Whether for homes, offices, or large projects, Azar Paints offers vibrant colours, long-lasting protection, and eco-friendly solutions to make your spaces truly stand out.",
       img: Azar ,
-      link: "https://your-electronics-link.com",
+      link: "https://www.azargroupltd.com/",
       buttonText: "Shop Now",
       bgGradient: "from-blue-500 via-cyan-400 to-green-400",
     },
@@ -30,7 +30,7 @@ export default function CallToAction() {
   description:
     "Star Oil has introduced a groundbreaking solution for commercial drivers: *Fuel Now, Pay Later*. Drivers can now purchase fuel on credit using their Ghana Card and personalized credit score. By registering on the myCredit Score app, verifying their identity, and gaining an individualized credit limit, drivers can buy fuel at selected Star Oil stations and pay later via mobile money. This initiative delivers real financial relief and supports Ghana’s digital transformation agenda.",
   img: star1,
-  link: "https://www.100jsprojects.com/",
+  link: "https://www.staroil.com.gh/",
   buttonText: "Learn more",
   bgGradient: "from-yellow-400 via-orange-500 to-red-500",
 },
